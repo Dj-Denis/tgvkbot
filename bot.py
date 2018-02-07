@@ -11,8 +11,9 @@ import vk
 import wget
 from PIL import Image
 from telebot import types
+from requests_toolbelt.multipart.encoder import MultipartEncoder
 
-from credentials import token, vk_app_id
+from credentials import token, vk_app_id, gify_key
 from vk_messages import VkMessage, VkPolling
 
 vk_threads = {}
@@ -439,8 +440,8 @@ def send_doc(message, userid, group, forward_messages=None):
         fileonserver = ujson.loads(requests.post(vk.API(session, v=3.0).docs.getUploadServer()['upload_url'],
                                                  files=files).text)
         attachment = vk.API(session, v=3.0).docs.save(file=fileonserver['file'],
-                                               title=getattr(message, filetype).file_name,
-                                               tags='')
+                                                      title=getattr(message, filetype).file_name,
+                                                      tags='')
         openedfile.close()
         os.remove(file)
 
@@ -453,12 +454,12 @@ def send_doc(message, userid, group, forward_messages=None):
             requests.post(vk.API(session, v=3.0).docs.getUploadServer(type='audio_message')['upload_url'],
                           files=files).text)
         attachment = vk.API(session, v=3.0).docs.save(file=fileonserver['file'], title='Аудиосообщение',
-                                               tags='')
+                                                      tags='')
         openedfile.close()
         os.remove(file)
 
     elif filetype == 'document' and 'video' in message.document.mime_type:
-        vk_sender(message, send_video)
+        vk_sender(message, send_gif)
         return
 
     else:  # filetype == 'audio':
@@ -471,8 +472,8 @@ def send_doc(message, userid, group, forward_messages=None):
         fileonserver = ujson.loads(requests.post(vk.API(session, v=3.0).docs.getUploadServer()['upload_url'],
                                                  files=files).text)
         attachment = vk.API(session, v=3.0).docs.save(file=fileonserver['file'],
-                                               title=audio_title_creator(message, message.audio.performer,
-                                                                         message.audio.title), tags='')
+                                                      title=audio_title_creator(message, message.audio.performer,
+                                                                                message.audio.title), tags='')
         openedfile.close()
         os.remove(newfile)
 
@@ -480,25 +481,73 @@ def send_doc(message, userid, group, forward_messages=None):
         if message.caption:
 
             vk.API(session, v=3.0).messages.send(chat_id=userid, message=message.caption,
-                                          attachment='doc{}_{}'.format(attachment[0]['owner_id'],
-                                                                       attachment[0]['did']),
-                                          forward_messages=forward_messages)
+                                                 attachment='doc{}_{}'.format(attachment[0]['owner_id'],
+                                                                              attachment[0]['did']),
+                                                 forward_messages=forward_messages)
         else:
             vk.API(session, v=3.0).messages.send(chat_id=userid,
-                                          attachment='doc{}_{}'.format(attachment[0]['owner_id'],
-                                                                       attachment[0]['did']),
-                                          forward_messages=forward_messages)
+                                                 attachment='doc{}_{}'.format(attachment[0]['owner_id'],
+                                                                              attachment[0]['did']),
+                                                 forward_messages=forward_messages)
     else:
         if message.caption:
             vk.API(session, v=3.0).messages.send(user_id=userid, message=message.caption,
-                                          attachment='doc{}_{}'.format(attachment[0]['owner_id'],
-                                                                       attachment[0]['did']),
-                                          forward_messages=forward_messages)
+                                                 attachment='doc{}_{}'.format(attachment[0]['owner_id'],
+                                                                              attachment[0]['did']),
+                                                 forward_messages=forward_messages)
         else:
             vk.API(session, v=3.0).messages.send(user_id=userid,
-                                          attachment='doc{}_{}'.format(attachment[0]['owner_id'],
-                                                                       attachment[0]['did']),
-                                          forward_messages=forward_messages)
+                                                 attachment='doc{}_{}'.format(attachment[0]['owner_id'],
+                                                                              attachment[0]['did']),
+                                                 forward_messages=forward_messages)
+
+
+def send_gif(message, userid, group, forward_messages=None):
+    filetype = message.content_type
+    session = VkMessage(vk_tokens.get(str(message.from_user.id))).session
+    file = wget.download(
+        FILE_URL.format(token, bot.get_file(getattr(message, filetype).file_id).wait().file_path))
+    openedfile = open(file, 'rb')
+    multipart_data = MultipartEncoder(fields={'file': ('file.gif', openedfile, 'video/mp4')})
+    gify = requests.post('https://api.gifs.com/media/upload', data=multipart_data,
+                         headers={"Gifs-API-Key": gify_key, 'Content-Type': multipart_data.content_type})
+    openedfile.close()
+    os.remove(file)
+    if len(gify.json()) > 0:
+        if 'success' in gify.json():
+            file = wget.download(gify.json()['success']['files']['gif'])
+            openedfile = open(file, 'rb')
+            files = {'file': openedfile}
+            fileonserver = ujson.loads(requests.post(vk.API(session, v=5.65).docs.getUploadServer()['upload_url'],
+                                                     files=files).text)
+            attachment = vk.API(session, v=3.0).docs.save(file=fileonserver['file'],
+                                                          title=getattr(message, filetype).file_name,
+                                                          tags='')
+            if group:
+                if message.caption:
+
+                    vk.API(session, v=3.0).messages.send(chat_id=userid, message=message.caption,
+                                                         attachment='doc{}_{}'.format(attachment[0]['owner_id'],
+                                                                                      attachment[0]['did']),
+                                                         forward_messages=forward_messages)
+                else:
+                    vk.API(session, v=3.0).messages.send(chat_id=userid,
+                                                         attachment='doc{}_{}'.format(attachment[0]['owner_id'],
+                                                                                      attachment[0]['did']),
+                                                         forward_messages=forward_messages)
+            else:
+                if message.caption:
+                    vk.API(session, v=3.0).messages.send(user_id=userid, message=message.caption,
+                                                         attachment='doc{}_{}'.format(attachment[0]['owner_id'],
+                                                                                      attachment[0]['did']),
+                                                         forward_messages=forward_messages)
+                else:
+                    vk.API(session, v=3.0).messages.send(user_id=userid,
+                                                         attachment='doc{}_{}'.format(attachment[0]['owner_id'],
+                                                                                      attachment[0]['did']),
+                                                         forward_messages=forward_messages)
+            openedfile.close()
+            os.remove(file)
 
 
 def send_photo(message, userid, group, forward_messages=None):
@@ -510,22 +559,25 @@ def send_photo(message, userid, group, forward_messages=None):
     files = {'file': openedfile}
     fileonserver = ujson.loads(requests.post(vk.API(session, v=3.0).photos.getMessagesUploadServer()['upload_url'],
                                              files=files).text)
-    attachment = vk.API(session, v=3.0).photos.saveMessagesPhoto(server=fileonserver['server'], photo=fileonserver['photo'],
-                                                          hash=fileonserver['hash'])
+    attachment = vk.API(session, v=3.0).photos.saveMessagesPhoto(server=fileonserver['server'],
+                                                                 photo=fileonserver['photo'],
+                                                                 hash=fileonserver['hash'])
     if group:
         if message.caption:
-            vk.API(session, v=3.0).messages.send(chat_id=userid, message=message.caption, attachment=attachment[0]['id'],
-                                          forward_messages=forward_messages)
+            vk.API(session, v=3.0).messages.send(chat_id=userid, message=message.caption,
+                                                 attachment=attachment[0]['id'],
+                                                 forward_messages=forward_messages)
         else:
             vk.API(session, v=3.0).messages.send(chat_id=userid, attachment=attachment[0]['id'],
-                                          forward_messages=forward_messages)
+                                                 forward_messages=forward_messages)
     else:
         if message.caption:
-            vk.API(session, v=3.0).messages.send(user_id=userid, message=message.caption, attachment=attachment[0]['id'],
-                                          forward_messages=forward_messages)
+            vk.API(session, v=3.0).messages.send(user_id=userid, message=message.caption,
+                                                 attachment=attachment[0]['id'],
+                                                 forward_messages=forward_messages)
         else:
             vk.API(session, v=3.0).messages.send(user_id=userid, attachment=attachment[0]['id'],
-                                          forward_messages=forward_messages)
+                                                 forward_messages=forward_messages)
     openedfile.close()
     os.remove(file)
 
@@ -583,7 +635,7 @@ def send_video(message, userid, group, forward_messages=None):
         video = 'video{}_{}'.format(attachment['owner_id'], attachment['owner_id']['video_id'])
         if message.caption:
             vk.API(session, v=3.0).messages.send(chat_id=userid, message=message.caption, attachment=video,
-                                          forward_messages=forward_messages)
+                                                 forward_messages=forward_messages)
         else:
             vk.API(session, v=3.0).messages.send(chat_id=userid, attachment=video, forward_messages=forward_messages)
     else:
@@ -593,7 +645,7 @@ def send_video(message, userid, group, forward_messages=None):
         video = 'video{}_{}'.format(attachment['owner_id'], attachment['vid'])
         if message.caption:
             vk.API(session, v=3.0).messages.send(user_id=userid, message=message.caption, attachment=video,
-                                          forward_messages=forward_messages)
+                                                 forward_messages=forward_messages)
         else:
             vk.API(session, v=3.0).messages.send(user_id=userid, attachment=video, forward_messages=forward_messages)
     openedfile.close()

@@ -4,3 +4,4 @@ redis
 Pillow
 ujson
 wget
+requests_toolbelt
