@@ -37,9 +37,9 @@ class VkPolling:
 
 def handle_messages(m, vk_user, bot, chat_id, mainmessage=None):
     if m['uid'] > 0:
-        user = vk.API(vk_user.session).users.get(user_ids=m["uid"], fields=[])[0]
+        user = vk.API(vk_user.session, v=3.0).users.get(user_ids=m["uid"], fields=[])[0]
     else:
-        group = vk.API(vk_user.session).groups.getById(group_ids=str(m['uid'])[1:])[0]
+        group = vk.API(vk_user.session, v=3.0).groups.getById(group_ids=str(m['uid'])[1:])[0]
         user = {'first_name': group['name'], 'last_name': None}
 
     if 'body' in m and not 'attachment' in m and not 'geo' in m and not 'fwd_messages' in m:
@@ -332,14 +332,14 @@ class VkMessage:
         api = vk.API(self.session)
         try:
             ts_pts = ujson.dumps({"ts": self.ts, "pts": self.pts})
-            new = api.execute(code='return API.messages.getLongPollHistory({});'.format(ts_pts))
+            new = api.execute(code='return API.messages.getLongPollHistory({});'.format(ts_pts), v=3.0)
         except vk.api.VkAPIError:
             timeout = 3
             logging.warning('Retrying getLongPollHistory in {} seconds'.format(timeout))
             time.sleep(timeout)
             self.ts, self.pts = get_tses(self.session)
             ts_pts = ujson.dumps({"ts": self.ts, "pts": self.pts})
-            new = api.execute(code='return API.messages.getLongPollHistory({});'.format(ts_pts))
+            new = api.execute(code='return API.messages.getLongPollHistory({});'.format(ts_pts), v=3.0)
 
         msgs = new['messages']
         self.pts = new["new_pts"]
@@ -360,7 +360,7 @@ def get_session(token):
 
 
 def get_tses(session):
-    api = vk.API(session)
-
-    ts = api.messages.getLongPollServer(need_pts=1)
+    api = vk.API(session, v=3.0)
+    time.sleep(0.5)
+    ts = api.messages.getLongPollServer(need_pts=1, v=3.0)
     return ts['ts'], ts['pts']
