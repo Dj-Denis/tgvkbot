@@ -538,24 +538,30 @@ def send_sticker(message, userid, group, forward_messages=None):
     Image.open(file).save("{}.png".format(file))
     openedfile = open('{}.png'.format(file), 'rb')
     files = {'file': openedfile}
-    fileonserver = ujson.loads(requests.post(vk.API(session, v=3.0).photos.getMessagesUploadServer()['upload_url'],
+    fileonserver = ujson.loads(requests.post(vk.API(session, v=3.0).docs.getUploadServer(type='graffiti')['upload_url'],
                                              files=files).text)
-    attachment = vk.API(session, v=3.0).photos.saveMessagesPhoto(server=fileonserver['server'], photo=fileonserver['photo'],
-                                                          hash=fileonserver['hash'])
+    attachment = vk.API(session, v=3.0).docs.save(file=fileonserver['file'])
     if group:
         if message.caption:
-            vk.API(session, v=3.0).messages.send(chat_id=userid, message=message.caption, attachment=attachment[0]['id'],
-                                          forward_messages=forward_messages)
+            vk.API(session, v=3.0).messages.send(chat_id=userid, message=message.caption,
+                                                 attachment=str(attachment[0]['owner_id']) + '_' + str(
+                                                     attachment[0]['did']),
+                                                 forward_messages=forward_messages)
         else:
-            vk.API(session, v=3.0).messages.send(chat_id=userid, attachment=attachment[0]['id'],
-                                          forward_messages=forward_messages)
+            vk.API(session, v=3.0).messages.send(chat_id=userid, attachment=str(attachment[0]['owner_id']) + '_' + str(
+                attachment[0]['did']),
+                                                 forward_messages=forward_messages)
     else:
         if message.caption:
-            vk.API(session, v=3.0).messages.send(user_id=userid, message=message.caption, attachment=attachment[0]['id'],
-                                          forward_messages=forward_messages)
+            vk.API(session, v=3.0).messages.send(user_id=userid, message=message.caption,
+                                                 attachment=str(attachment[0]['owner_id']) + '_' + str(
+                                                     attachment[0]['did']),
+                                                 forward_messages=forward_messages)
         else:
-            vk.API(session, v=3.0).messages.send(user_id=userid, attachment=attachment[0]['id'],
-                                          forward_messages=forward_messages)
+            vk.API(session, v=3.0).messages.send(user_id=userid,
+                                                 attachment='doc' + str(attachment[0]['owner_id']) + '_' + str(
+                                                     attachment[0]['did']),
+                                                 forward_messages=forward_messages)
     openedfile.close()
     os.remove('{}.png'.format(file))
     os.remove(file)
